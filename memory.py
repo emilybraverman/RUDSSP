@@ -13,6 +13,8 @@
 import numpy as np
 import math
 import torch
+
+import torch.nn.init
 import torch.nn as nn
 
 class Memory():
@@ -22,9 +24,10 @@ class Memory():
     def __init__(self, key_size, memory_size, choose_k = 256, inverse_temp = 40, margin = 0.1):
         self.key_size = key_size
         self.memory_size = memory_size
-        self.keys = np.random.randn(self.memory_size, self.key_size)
-        self.value = np.zeros(memory_size)
-        self.age = np.zeros(memory_size)
+        self.keys = torch.Tensor(memory_size, key_size)
+        nn.init.uniform(self.keys, a=-0.0, b=0.0)
+        self.values = torch.Tensor(memory_size).zero_()
+        self.age = torch.Tensor(memory_size).zero_()
         self.choose_k = choose_k
         self.inverse_temp = inverse_temp
         self.margin = margin
