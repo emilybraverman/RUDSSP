@@ -39,15 +39,17 @@ class Memory():
         Returns:
 
         """
-
+        #Find the k-nearest neighbors of the query
         values, indices = torch.topk(query.repeat(self.memory_size).dot(self.keys.T), self.choose_k, dim = 0)
+
+        #Calculate similarity values
         cosine_sims = [query.dot(self.K[indices[i]]) for i in indices]
         sims_t = [x * self.inverse_temp for x in cosine_sims]
         softmax = nn.Softmax()
         softmax_vals = softmax(sims_t)
 
         # Determine V[n_1]
-        main_value = self.V[indices[1]]
+        main_value = self.V[indices[0]]
 
         return main_value, softmax_vals, indices
 
@@ -60,17 +62,23 @@ class Memory():
             query: A normalized vector of size key-size.
             ground_truth: The correct desired label for the query.
         """
+        #Find negative neighbor
         for neighbor in nearest_neighbors:
             if self.value[neighbor] != ground_truth:
                 negative_neighbor = neighbor
                 break
 
+        #Flag notifying whether a positive neighbor was found
         found = False
+
+        #Find positive neighbor
         for neighbor in nearest_neighbors:
             if self.value[neighbor] == ground_truth:
                 positive_neighbor = neighbor
                 found = True
                 break
+
+        #Selects an arbitrary positive neighbor if none of the k-nearest neighbors are positive
         if not found:
             positive_neighbor = np.where(self.value == ground_truth)[0]
 
@@ -79,9 +87,39 @@ class Memory():
         return loss
 
     def memory_update(self, main_value, query, ground_truth, indices):
+        """
+       Performs the memory update.
+
+       Arguments:
+           main_value: The value in the first index of self.value
+            query: A normalized vector of size key-size.
+            ground_truth: The correct desired label for the query.
+            indices: A list of the k-nearest neighbors of the query.
+        """
         if main_value == ground_truth:
             #Update key for n_1
             self.k[indices[0]] = (q + self.k[indices[0]]) / np.linalg.norm(q + self.k[indices[0]])
             self.age[indices[0]] = 0
+
+            #Update age of everything else
+            self.age = [self.age[x] + 1 for x in range(self.age) if x != 0]
         else:
-            pass
+            #Select n_prime, an index of maximum age that will be overwritten
+            oldest = np.argwhere(self.age == np.amax(self.age))
+            oldest = oldest.flatten().tolist()
+            n_prime = np.random.choice(oldest)
+
+            #Update at n_prime
+            self.keys[n_prime] = query
+            self.value[n_prime] = ground_truth
+            self.age[n_prime] = 0
+
+            #Update age of everything else
+            self.age = [self.age[x] + 1 for x in range(self.age) if x != n_prime]
+
+        return 0
+
+
+
+
+
