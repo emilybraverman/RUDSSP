@@ -4,9 +4,14 @@
 # Published at ICLR 2017 by Google Brain.
 #
 # Authors: Lukasz Kaiser, Ofir Nachum, Aurko Roy, Samy Bengio
+#
+#
+#
+
 
 
 import numpy as np
+import math
 import torch
 import torch.nn as nn
 
