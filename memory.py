@@ -17,7 +17,7 @@ class Memory():
     def __init__(self, key_size, memory_size, choose_k = 256, inverse_temp = 40, margin = 0.1):
         self.key_size = key_size
         self.memory_size = memory_size
-        self.keys = k
+        self.keys = np.random.randn(self.memory_size, self.key_size)
         self.value = np.zeros(memory_size)
         self.age = np.zeros(memory_size)
         self.choose_k = choose_k
