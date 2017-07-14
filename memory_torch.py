@@ -20,8 +20,43 @@ class Memory(nn.Module):
         self.keys.data.uniform_(-0.1, 0.1)
 
 
-    def forward(self, input):
-        return Memory()(input, self.keys, self.bias)
+    def forward(self, input, calc_cosine = False):
+        """
+        Computes nearest neighbors of the input queries.
 
-x = Memory(3, 6)
-print(x)
+        Arguments:
+            input: A normalized matrix of queries of size num_inputs x key-size.
+        Returns:
+
+        """
+
+        softmax_vals = None
+
+        #Find the k-nearest neighbors of the query
+        key_scores = torch.mm(input, torch.t(self.keys.data))
+        values, indices = torch.topk(key_scores, self.choose_k, dim = 1)
+
+        if calc_cosine:
+
+            row_i = input.size()[0]
+            column_i = self.choose_k
+            cosine_sims = torch.Tensor(row_i, column_i)
+
+            #Calculate similarity values
+            for i in range(row_i):
+                for j in range(column_i):
+                    cosine_sims[i][j] = torch.dot(input[i], self.keys.data[indices[i][j]])
+            sims_t = nn.Parameter(self.inverse_temp * cosine_sims)
+            softmax = nn.Softmax()
+            softmax_vals = softmax(sims_t)
+
+        # Determine V[n_1]
+        main_value = self.value[indices[0]]
+
+        return main_value
+
+
+
+test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
+test_model = Memory(1000, 3)
+test_model.forward(test_input, calc_cosine=True)
