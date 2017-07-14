@@ -40,16 +40,16 @@ class Memory():
 
         """
         #Find the k-nearest neighbors of the query
-        values, indices = torch.topk(query.repeat(self.memory_size).dot(self.keys.T), self.choose_k, dim = 0)
+        values, indices = torch.topk(query.dot(self.keys.T), self.choose_k, dim = 0)
 
         #Calculate similarity values
-        cosine_sims = [query.dot(self.K[indices[i]]) for i in indices]
+        cosine_sims = [query.dot(self.keys[indices[i]]) for i in indices]
         sims_t = [x * self.inverse_temp for x in cosine_sims]
         softmax = nn.Softmax()
         softmax_vals = softmax(sims_t)
 
         # Determine V[n_1]
-        main_value = self.V[indices[0]]
+        main_value = self.value[indices[0]]
 
         return main_value, softmax_vals, indices
 
@@ -62,6 +62,9 @@ class Memory():
             query: A normalized vector of size key-size.
             ground_truth: The correct desired label for the query.
         """
+
+        positive_neighbor = None
+        negative_neighbor = None
         #Find negative neighbor
         for neighbor in nearest_neighbors:
             if self.value[neighbor] != ground_truth:
@@ -82,7 +85,7 @@ class Memory():
         if not found:
             positive_neighbor = np.where(self.value == ground_truth)[0]
 
-        loss = query.dot(self.k[negative_neighbor] - query.dot(self.k[positive_neighbor]) + self.margin)
+        loss = query.dot(self.keys[negative_neighbor] - query.dot(self.keys[positive_neighbor]) + self.margin)
 
         return loss
 
@@ -98,7 +101,7 @@ class Memory():
         """
         if main_value == ground_truth:
             #Update key for n_1
-            self.k[indices[0]] = (q + self.k[indices[0]]) / np.linalg.norm(q + self.k[indices[0]])
+            self.keys[indices[0]] = (q + self.keys[indices[0]]) / np.linalg.norm(q + self.k[indices[0]])
             self.age[indices[0]] = 0
 
             #Update age of everything else
