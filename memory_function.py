@@ -1,7 +1,3 @@
-
-
-
-
 import torch
 import torch.autograd as ag
 import torch.nn as nn
@@ -27,9 +23,9 @@ class Memory(ag.Function):
         Computes nearest neighbors of the input queries.
 
         Arguments:
-            input: A normalized matrix of queries of size num_inputs x key-size.
+            input: A normalized matrix of queries of size choose_k x key-size.
         Returns:
-
+            main_value, a batch-size x 1 matrix
         """
         softmax_vals = None
 
@@ -39,22 +35,29 @@ class Memory(ag.Function):
         self.nearest_neighbors = indices
         self.queries = input
 
-        if self.calc_cosine:
+        # Determine V[n_1]
+        main_value = self.value[indices[:, 0]]
 
-            row_i = input.size()[0]
-            column_i = self.choose_k
-            cosine_sims = torch.Tensor(row_i, column_i)
+        if self.calc_cosine:
+            # is this the condition for when the memory module is embedded?
+
+            # Calculate similarity values
+            cosine_sims = torch.dot(input, torch.t(self.keys[indices, :]))
+
+            #row_i = input.size()[0]
+            #column_i = self.choose_k
+            #cosine_sims = torch.Tensor(row_i, column_i)
 
             #Calculate similarity values
-            for i in range(row_i):
-                for j in range(column_i):
-                    cosine_sims[i][j] = torch.dot(input[i], self.keys.data[indices[i][j]])
+            #for i in range(row_i):
+            #    for j in range(column_i):
+            #        cosine_sims[i][j] = torch.dot(input[i], self.keys.data[indices[i][j]])
+
             sims_t = nn.Parameter(self.inverse_temp * cosine_sims)
             softmax = nn.Softmax()
             softmax_vals = softmax(sims_t)
 
-        # Determine V[n_1]
-        main_value = self.value[indices[:,0]]
+            return main_value, softmax_vals
 
         return main_value
 
