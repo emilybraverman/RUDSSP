@@ -123,26 +123,22 @@ def memory_update(model, output, ground_truth):
             model.age.data[n_1] = 0
 
             #Update age of everything else
-            model.age.data = [model.age.data[x] + 1 for x in range(model.age.data.size()[0]) if x != n_1]
+            model.age.data = torch.Tensor([model.age.data[x] + 1 if x != n_1 else 0 for x in range(model.age.data.size()[0])])
         else:
             #Select n_prime, an index of maximum age that will be overwritten
-            maxes, indices = torch.max(model.age)
-
-            oldest = oldest.flatten().tolist()
-            n_prime = np.random.choice(oldest)
-
+            max, n_prime_tensor = output.data.max(0)
+            n_prime = n_prime_tensor[0]
             #Update at n_prime
-            model.keys[n_prime] = query
-            model.value[n_prime] = ground_truth
-            model.age[n_prime] = 0
+            model.keys.data[n_prime] = queries[i]
+            model.value.data[n_prime] = ground_truth[i]
 
             #Update age of everything else
-            model.age = [model.age[x] + 1 for x in range(model.age) if x != n_prime]
+            model.age.data = torch.Tensor([model.age.data[x] + 1 if x != n_prime else 0 for x in range(model.age.data.size()[0])])
 
     return 0
 
 test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
-test_truth = [1, 3]
+test_truth = [10, 30]
 test_model = Memory(1000, 3)
 out = test_model.forward(test_input)
 memory_update(test_model, out, test_truth)
