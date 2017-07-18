@@ -8,8 +8,9 @@ class Memory(nn.Module):
     def __init__(self, memory_size, key_size, choose_k = 256, inverse_temp = 40, margin = 0.1):
         super(Memory, self).__init__()
         self.keys = nn.Parameter(torch.Tensor(memory_size, key_size))
-        self.value = nn.Parameter(torch.Tensor(memory_size))
-        self.age = nn.Parameter(torch.Tensor(memory_size))
+        nn.init.uniform(self.keys, a=-0.0, b=0.0)
+        self.value = nn.Parameter(torch.Tensor(memory_size).zero_())
+        self.age = nn.Parameter(torch.Tensor(memory_size).zero_())
         self.choose_k = choose_k
         self.inverse_temp = inverse_temp
         self.margin = margin
