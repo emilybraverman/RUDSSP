@@ -12,12 +12,11 @@ class Memory(ag.Function):
         #Initialize normalized key matrix
         keys = torch.randn((memory_size, key_size)).numpy()
         row_sums = keys.sum(axis=1)
-
         self.keys = nn.Parameter(torch.from_numpy(keys / row_sums[:, np.newaxis]))
 
 
         self.value = nn.Parameter(torch.from_numpy(np.array([i for i in range(memory_size)])))
-        self.age = nn.Parameter(torch.LongTensor(memory_size))
+        self.age = nn.Parameter(torch.from_numpy(np.zeros(memory_size)))
         self.choose_k = choose_k
         self.inverse_temp = inverse_temp
         self.margin = margin
@@ -101,6 +100,8 @@ def memory_loss(memory, ground_truth):
                 break
 
         #Flag notifying whether a positive neighbor was found
+        if negative_neighbor == None:
+            raise ValueError("Negative neighbor has none value: Your memory is full of the same value.")
         found = False
 
         #Find positive neighbor
@@ -115,7 +116,6 @@ def memory_loss(memory, ground_truth):
         if not found:
             memory_vals = memory.value.data.numpy()
             positive_neighbor = np.where(memory_vals == ground_truth[query])[0][0]
-
         loss += torch.dot(queries[query], memory.keys.data[negative_neighbor]) - torch.dot(queries[query], memory.keys.data[positive_neighbor]) + memory.margin
 
     return loss
@@ -137,7 +137,7 @@ def memory_update(memory, output, ground_truth):
 
     for i in range(output.size()[0]):
         if output.data[i] == ground_truth[i]:
-            n_1 = output[i]
+            n_1 = output.data[i]
             #Update key for n_1
             memory.keys.data[n_1] = (queries[i] + memory.keys.data[n_1]) / torch.norm(queries[i] + memory.keys.data[n_1])
             memory.age.data[n_1] = 0
@@ -146,21 +146,23 @@ def memory_update(memory, output, ground_truth):
             memory.age.data = torch.Tensor([memory.age.data[x] + 1 if x != n_1 else 0 for x in range(memory.age.data.size()[0])])
         else:
             #Select n_prime, an index of maximum age that will be overwritten
-            max, n_prime_tensor = output.data.max(0)
-            n_prime = n_prime_tensor[0]
+            oldest = np.where(memory.age.data.numpy() == np.max(memory.age.data.numpy()))[0]
+            n_prime = np.random.choice(oldest)
             #Update at n_prime
             memory.keys.data[n_prime] = queries[i]
             memory.value.data[n_prime] = ground_truth[i]
+            memory.age.data[n_prime] = 0
 
             #Update age of everything else
-            memory.age.data = torch.Tensor([memory.age.data[x] + 1 if x != n_prime else 0 for x in range(memory.age.data.size()[0])])
+            memory.age.data = torch.from_numpy(np.asarray([memory.age.data[x] + 1 if x != n_prime else 0 for x in range(memory.age.data.size()[0])]))
 
     return 0
 
 test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
 test_truth = [10, 30]
 test_model = Memory(1000, 3)
-out = test_model.forward(test_input)
-loss = memory_loss(test_model, test_truth)
-print(loss)
-memory_update(test_model, out, test_truth)
+for i in range(450):
+    out = test_model.forward(test_input)
+    loss = memory_loss(test_model, test_truth)
+    print(i, ": ", loss)
+    memory_update(test_model, out, test_truth)
