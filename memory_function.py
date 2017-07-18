@@ -9,8 +9,8 @@ class Memory(ag.Function):
         self.memory_size = memory_size
         self.key_size = key_size
         self.keys = nn.Parameter(torch.Tensor(memory_size, key_size))
-        self.value = nn.Parameter(torch.Tensor(memory_size))
-        self.age = nn.Parameter(torch.Tensor(memory_size))
+        self.value = nn.Parameter(torch.from_numpy(np.array([i for i in range(memory_size)])))
+        self.age = nn.Parameter(torch.LongTensor(memory_size))
         self.choose_k = choose_k
         self.inverse_temp = inverse_temp
         self.margin = margin
@@ -64,21 +64,25 @@ class Memory(ag.Function):
     def backward(self, grad_output):
         pass
 
-    def memory_loss(self, nearest_neighbors, query, ground_truth):
-        """
-        Calculates memory loss for a given query and ground truth label.
+def memory_loss(memory, ground_truth):
+    """
+    Calculates memory loss for a given query and ground truth label.
 
-        Arguments:
-            nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
-            query: A normalized vector of size key-size.
-            ground_truth: The correct desired label for the query.
-        """
-        nearest_neighbors = self.nearest_neighbors
-        positive_neighbor = None
-        negative_neighbor = None
+    Arguments:
+        nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
+        query: A normalized vector of size key-size.
+        ground_truth: The correct desired label for the query.
+    """
+    nearest_neighbors = memory.nearest_neighbors
+    queries = memory.queries
+    positive_neighbor = None
+    negative_neighbor = None
+    loss = 0.0
+
+    for query in range(queries.size()[0]):
         #Find negative neighbor
-        for neighbor in nearest_neighbors:
-            if self.value[neighbor] != ground_truth:
+        for neighbor in nearest_neighbors[query]:
+            if memory.value.data[neighbor] != ground_truth[query]:
                 negative_neighbor = neighbor
                 break
 
@@ -86,21 +90,23 @@ class Memory(ag.Function):
         found = False
 
         #Find positive neighbor
-        for neighbor in nearest_neighbors:
-            if self.value[neighbor] == ground_truth:
+
+        for neighbor in nearest_neighbors[query]:
+            if memory.value.data[neighbor] == ground_truth[query]:
                 positive_neighbor = neighbor
                 found = True
                 break
 
         #Selects an arbitrary positive neighbor if none of the k-nearest neighbors are positive
         if not found:
-            positive_neighbor = np.where(self.value == ground_truth)[0]
+            memory_vals = memory.value.data.numpy()
+            positive_neighbor = np.where(memory_vals == ground_truth[query])[0][0]
 
-        loss = query.dot(self.keys[negative_neighbor] - query.dot(self.keys[positive_neighbor]) + self.margin)
+        loss += torch.dot(queries[query], memory.keys.data[negative_neighbor]) - torch.dot(queries[query], memory.keys.data[positive_neighbor]) + memory.margin
 
-        return loss
+    return loss
 
-def memory_update(model, output, ground_truth):
+def memory_update(memory, output, ground_truth):
     """
    Performs the memory update.
 
@@ -112,28 +118,28 @@ def memory_update(model, output, ground_truth):
     """
 
     #unpack values
-    queries = model.queries
-    indices = model.nearest_neighbors
+    queries = memory.queries
+    indices = memory.nearest_neighbors
 
     for i in range(output.size()[0]):
         if output.data[i] == ground_truth[i]:
             n_1 = output[i]
             #Update key for n_1
-            model.keys.data[n_1] = (queries[i] + model.keys.data[n_1]) / torch.norm(queries[i] + model.keys.data[n_1])
-            model.age.data[n_1] = 0
+            memory.keys.data[n_1] = (queries[i] + memory.keys.data[n_1]) / torch.norm(queries[i] + memory.keys.data[n_1])
+            memory.age.data[n_1] = 0
 
             #Update age of everything else
-            model.age.data = torch.Tensor([model.age.data[x] + 1 if x != n_1 else 0 for x in range(model.age.data.size()[0])])
+            memory.age.data = torch.Tensor([memory.age.data[x] + 1 if x != n_1 else 0 for x in range(memory.age.data.size()[0])])
         else:
             #Select n_prime, an index of maximum age that will be overwritten
             max, n_prime_tensor = output.data.max(0)
             n_prime = n_prime_tensor[0]
             #Update at n_prime
-            model.keys.data[n_prime] = queries[i]
-            model.value.data[n_prime] = ground_truth[i]
+            memory.keys.data[n_prime] = queries[i]
+            memory.value.data[n_prime] = ground_truth[i]
 
             #Update age of everything else
-            model.age.data = torch.Tensor([model.age.data[x] + 1 if x != n_prime else 0 for x in range(model.age.data.size()[0])])
+            memory.age.data = torch.Tensor([memory.age.data[x] + 1 if x != n_prime else 0 for x in range(memory.age.data.size()[0])])
 
     return 0
 
@@ -141,4 +147,6 @@ test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
 test_truth = [10, 30]
 test_model = Memory(1000, 3)
 out = test_model.forward(test_input)
+loss = memory_loss(test_model, test_truth)
+print(loss)
 memory_update(test_model, out, test_truth)
