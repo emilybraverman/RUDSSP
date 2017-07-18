@@ -10,8 +10,10 @@ class Memory(ag.Function):
         self.key_size = key_size
 
         #Initialize normalized key matrix
-        keys = torch.Tensor(memory_size, key_size)
-        self.keys = nn.Parameter(torch.Tensor(memory_size, key_size))
+        keys = torch.randn((memory_size, key_size)).numpy()
+        row_sums = keys.sum(axis=1)
+
+        self.keys = nn.Parameter(torch.from_numpy(keys / row_sums[:, np.newaxis]))
 
 
         self.value = nn.Parameter(torch.from_numpy(np.array([i for i in range(memory_size)])))
