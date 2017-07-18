@@ -5,11 +5,7 @@ import numpy as np
 
 
 class Memory(ag.Function):
-    def __init__(self, batch_number, batch_size, memory_size, key_size, choose_k = 256, inverse_temp = 40, margin = 0.1, calc_cosine = False):
-        self.batch_number = batch_number
-        self.batch_size = batch_size
-        #batch_indices = [start_idx, stop_idx)
-        self.batch_indices = (batch_number * batch_size, (batch_number+1) * batch_size)
+    def __init__(self, memory_size, key_size, choose_k = 256, inverse_temp = 40, margin = 0.1, calc_cosine = False):
         self.memory_size = memory_size
         self.key_size = key_size
         self.keys = nn.Parameter(torch.Tensor(memory_size, key_size))
@@ -19,7 +15,7 @@ class Memory(ag.Function):
         self.inverse_temp = inverse_temp
         self.margin = margin
         self.calc_cosine = calc_cosine
-        self.nearest_neighbors = torch.Tensor(batch_size, choose_k)
+        self.nearest_neighbors = torch.Tensor(memory_size, choose_k)
         self.queries = None
 
     def forward(self, input):
@@ -27,16 +23,14 @@ class Memory(ag.Function):
         Computes nearest neighbors of the input queries.
 
         Arguments:
-            input: A normalized matrix of queries of size batch-size x key-size.
+            input: A normalized matrix of queries of size choose_k x key-size.
         Returns:
             main_value, a batch-size x 1 matrix
         """
         softmax_vals = None
 
         #Find the k-nearest neighbors of the query
-        # key_scores = [batch-size x memory-size]
         key_scores = torch.mm(input, torch.t(self.keys.data))
-        #values, indices are batch-size x choose-k
         values, indices = torch.topk(key_scores, self.choose_k, dim = 1)
         self.nearest_neighbors = indices
         self.queries = input
@@ -48,7 +42,7 @@ class Memory(ag.Function):
             # is this the condition for when the memory module is embedded?
 
             # Calculate similarity values
-            cosine_sims = torch.mm(input, torch.t(self.keys[indices, :]))
+            cosine_sims = torch.dot(input, torch.t(self.keys[indices, :]))
 
             #row_i = input.size()[0]
             #column_i = self.choose_k
@@ -70,31 +64,6 @@ class Memory(ag.Function):
     def backward(self, grad_output):
         pass
 
-<<<<<<< HEAD
-    def memory_loss(self, query, ground_truth):
-        """
-        Calculates memory loss for a given query and ground truth label.
-
-        Arguments:
-            nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
-            query: A normalized tensor of size batch-size x key-size.
-            ground_truth: vector of size batch-size
-        """
-        # batch-size x choose-k; elements are indices of key_scores dim 0
-        nearest_neighbors = self.nearest_neighbors
-        positive_neighbor = None
-        negative_neighbor = None
-        #Find negative neighbor
-        #for neighbor in nearest_neighbors:
-        #    if self.value[neighbor] != ground_truth:
-        #        negative_neighbor = neighbor
-        #        break
-        batch_indices = range(self.batch_indices[0], self.batch_indices[1])
-        # batch_size x <256 matrix with all indices where query val != ground truth
-        negative_neighbor_indices = np.where(self.value[batch_indices, nearest_neighbors] != ground_truth)[0]
-        #neg nbr = batch_size x 1 vector
-        negative_neighbor = negative_neighbor_indices[:, 0]
-=======
 def memory_loss(memory, ground_truth):
     """
     Calculates memory loss for a given query and ground truth label.
@@ -116,29 +85,17 @@ def memory_loss(memory, ground_truth):
             if memory.value.data[neighbor] != ground_truth[query]:
                 negative_neighbor = neighbor
                 break
->>>>>>> f8e0b6d462ff2a999fd6a8c762825333b811678f
 
         #Flag notifying whether a positive neighbor was found
         found = False
 
         #Find positive neighbor
-<<<<<<< HEAD
-        #for neighbor in nearest_neighbors:
-        #    if self.value[neighbor] == ground_truth:
-        #        positive_neighbor = neighbor
-        #        found = True
-        #        break
-        positive_neighbor_indices = np.where(self.value[batch_indices, nearest_neighbors] == ground_truth)[0]
-        # pos nbr = batch_size x 1 vector
-        positive_neighbor = positive_neighbor_indices[:, 0]
-=======
 
         for neighbor in nearest_neighbors[query]:
             if memory.value.data[neighbor] == ground_truth[query]:
                 positive_neighbor = neighbor
                 found = True
                 break
->>>>>>> f8e0b6d462ff2a999fd6a8c762825333b811678f
 
         #Selects an arbitrary positive neighbor if none of the k-nearest neighbors are positive
         if not found:
@@ -149,11 +106,7 @@ def memory_loss(memory, ground_truth):
 
     return loss
 
-<<<<<<< HEAD
-def memory_update(model, main_value, output, queries, ground_truth, indices):
-=======
 def memory_update(memory, output, ground_truth):
->>>>>>> f8e0b6d462ff2a999fd6a8c762825333b811678f
     """
    Performs the memory update.
 
