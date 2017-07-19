@@ -29,13 +29,13 @@ class Memory(ag.Function):
         Computes nearest neighbors of the input queries.
 
         Arguments:
-            input: A normalized matrix of queries of size choose_k x key-size.
+            input: A PyTorch Variable whose data contains queries of size batch_size x key-size.
         Returns:
             main_value, a batch-size x 1 matrix
         """
 
         #Normalize queries
-        np_query = input.numpy()
+        np_query = input.data.cpu().numpy()
         row_sums = np_query.sum(axis = 1)
         input = torch.from_numpy(np_query / row_sums[:, np.newaxis])
 
@@ -79,12 +79,11 @@ class Memory(ag.Function):
 
 def memory_loss(memory, ground_truth):
     """
-    Calculates memory loss for a given query and ground truth label.
+    Calculates memory loss for a given memory and ground truth label.
 
     Arguments:
-        nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
-        query: A normalized vector of size key-size.
-        ground_truth: The correct desired label for the query.
+        memory: A Memory module.
+        ground_truth: The correct desired labels for the queries.
     """
     nearest_neighbors = memory.nearest_neighbors
     queries = memory.queries
@@ -125,10 +124,10 @@ def memory_update(memory, output, ground_truth):
    Performs the memory update.
 
    Arguments:
-       main_value: The value in the first index of self.value
-        query: A normalized vector of size key-size.
+       memory: A Memory Module.
+        output: The resulting values from the forward pass through memory.
         ground_truth: The correct desired label for the query.
-        indices: A list of the k-nearest neighbors of the query.
+
     """
 
     #unpack values
@@ -158,11 +157,14 @@ def memory_update(memory, output, ground_truth):
 
     return 0
 
-test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
-test_truth = [10, 30]
-test_model = Memory(1000, 3)
-for i in range(450):
-    out = test_model.forward(test_input)
-    loss = memory_loss(test_model, test_truth)
-    print(i, ": ", loss)
-    memory_update(test_model, out, test_truth)
+
+
+###### TEST ###########
+# test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
+# test_truth = [10, 30]
+# test_model = Memory(1000, 3)
+# for i in range(450):
+#     out = test_model.forward(test_input)
+#     loss = memory_loss(test_model, test_truth)
+#     print(i, ": ", loss)
+#     memory_update(test_model, out, test_truth)
