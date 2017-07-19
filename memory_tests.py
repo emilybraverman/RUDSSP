@@ -94,6 +94,7 @@ def unpickle(file):
         dict = pickle.load(fo, encoding='bytes')
     return dict
 
+
 print("Unpacking Omniglot...")
 train_dict = unpickle(omniglot_root + "/train_omni.pkl")
 test_dict = unpickle(omniglot_root + "/test_omni.pkl")
@@ -127,17 +128,59 @@ gpu_dtype = torch.cuda.FloatTensor
 # Constant to control how frequently we print train loss
 print_every = 100
 
-def train(model, loss_fn, optimizer, num_epochs=1, memory = False):
+def train(model, loss_fn, optimizer, num_epochs=1):
     for epoch in range(num_epochs):
         print('Starting epoch %d / %d' % (epoch + 1, num_epochs))
         model.train()
-        model.cuda()
+        #model.cuda()
         for t, (x, y) in enumerate(loader_train):
-            x_var = Variable(x.type(gpu_dtype))
-            #x_var = Variable(x.type(dtype))
+            #x_var = Variable(x.type(gpu_dtype))
+            x_var = Variable(x.type(dtype))
 
-            y_var = Variable(y.type(gpu_dtype).long())
-            #y_var = Variable(y.type(dtype).long())
+            #y_var = Variable(y.type(gpu_dtype).long())
+            y_var = Variable(y.type(dtype).long())
+
+            scores = model(x_var)
+
+            loss = loss_fn(scores, y_var)
+            if (t + 1) % print_every == 0:
+                print('t = %d, loss = %.4f' % (t + 1, loss.data[0]))
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+def check_accuracy(model, loader):
+    if loader.dataset.train:
+        print('Checking accuracy on validation set')
+    else:
+        print('Checking accuracy on test set')
+    num_correct = 0
+    num_samples = 0
+    model.eval()  # Put the model in test mode (the opposite of model.train(), essentially)
+    for x, y in loader:
+        x_var = Variable(x.type(gpu_dtype), volatile=True)
+        # x_var = Variable(x.type(dtype), volatile=True)
+
+        scores = model(x_var)
+        _, preds = scores.data.cpu().max(1)
+        num_correct += (preds == y).sum()
+        num_samples += preds.size(0)
+    acc = float(num_correct) / num_samples
+    print('Got %d / %d correct (%.2f)' % (num_correct, num_samples, 100 * acc))
+    return 100 * acc
+
+def train_with_memory(model, loss_fn, optimizer, num_epochs=1, memory = False):
+    for epoch in range(num_epochs):
+        print('Starting epoch %d / %d' % (epoch + 1, num_epochs))
+        model.train()
+        #model.cuda()
+        for t, (x, y) in enumerate(loader_train):
+            #x_var = Variable(x.type(gpu_dtype))
+            x_var = Variable(x.type(dtype))
+
+            #y_var = Variable(y.type(gpu_dtype).long())
+            y_var = Variable(y.type(dtype).long())
 
             scores = model(x_var)
             if memory:
@@ -158,8 +201,7 @@ def train(model, loss_fn, optimizer, num_epochs=1, memory = False):
             if memory:
                 memory_function.memory_update(memory, prediction, y_var)
 
-
-def check_accuracy(model, loader):
+def check_accuracy_with_memory(model, loader):
     if loader.dataset.train:
         print('Checking accuracy on validation set')
     else:
@@ -191,8 +233,8 @@ optimizer = optim.SGD(model.parameters(), lr=.0075, momentum=.95)
 
 
 ##### Train Network #####
-train(model, loss_fn, optimizer, num_epochs=10, memory = memory)
-check_accuracy(model, loader_val)
+train_with_memory(model, loss_fn, optimizer, num_epochs=10, memory = memory)
+check_accuracy_with_memory(model, loader_val)
 
 runtime = time.time() - start_time
 print("Runtime: ", runtime)
