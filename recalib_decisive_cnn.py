@@ -16,6 +16,8 @@ import torchvision.models as models
 import torchfile
 from torch.utils.data import TensorDataset
 
+import matplotlib.pyplot as plt
+
 #from torchsample.transforms import Compose, RangeNorm, ToTensor, TypeCast, RandomGamma, RandomBrightness, RandomSaturation, ChannelsFirst, ChannelsLast
 
 
@@ -57,18 +59,35 @@ class ChunkSampler(sampler.Sampler):
 NUM_TRAIN = 49000
 NUM_VAL = 1000
 
-#train_filename = '/Users/peterjalbert/Desktop/RUDSSP/cifar100_cnn/cs231n/cifar-100-python/train'
 train_filename = './cs231n/cifar-100-python/train'
-#test_filename = '/Users/peterjalbert/Desktop/RUDSSP/cifar100_cnn/cs231n/cifar-100-python/test'
 test_filename = './cs231n/cifar-100-python/test'
 train_filedict = unpickle(train_filename)
 test_filedict = unpickle(test_filename)
-#print (filedict.keys())
-#print(filedict['fine_labels'])
+
 train_coarse_list = train_filedict[b'coarse_labels']
 test_coarse_list = test_filedict[b'coarse_labels']
 train_fine_list = train_filedict[b'fine_labels']
 test_fine_list = test_filedict[b'fine_labels']
+
+fine_to_coarse_dict = {19: 11, 29: 15, 0: 4, 11: 14, 1: 1, 86: 5, 90: 18, 28: 3, 23: 10, 31: 11,
+                       39: 5, 96: 17, 82: 2, 17: 9, 71: 10, 8: 18, 97: 8, 80: 16, 74: 16, 59: 17,
+                       70: 2, 87: 5, 84: 6, 64: 12, 52: 17, 42: 8, 47: 17, 65: 16, 21: 11, 22: 5,
+                       81: 19, 24: 7, 78: 15, 45: 13, 49: 10, 56: 17, 76: 9, 89: 19, 73: 1, 14: 7,
+                       9: 3, 6: 7, 20: 6, 98: 14, 36: 16, 55: 0, 72: 0, 43: 8, 51: 4, 35: 14, 83: 4,
+                       33: 10, 27: 15, 53: 4, 92: 2, 50: 16, 15: 11, 18: 7, 46: 14, 75: 12, 38: 11,
+                       66: 12, 77: 13, 69: 19, 95: 0, 99: 13, 93: 15, 4: 0, 61: 3, 94: 6, 68: 9, 34: 12,
+                       32: 1, 88: 8, 67: 1, 30: 0, 62: 2, 63: 12, 40: 5, 26: 13, 48: 18, 79: 13, 85: 19,
+                       54: 2, 44: 15, 7: 7, 12: 9, 2: 14, 41: 19, 37: 9, 13: 18, 25: 6, 10: 3, 57: 4,
+                       5: 6, 60: 10, 91: 1, 3: 8, 58: 18, 16: 3}
+
+coarse_to_fine_dict = {11: [38, 15, 19, 21, 31], 15: [44, 78, 29, 27, 93], 4: [0, 51, 83, 53, 57],
+                       14: [2, 35, 98, 11, 46], 1: [32, 1, 67, 73, 91], 5: [39, 40, 86, 87, 22],
+                       18: [58, 8, 13, 48, 90], 3: [9, 10, 16, 28, 61], 10: [33, 71, 49, 23, 60],
+                       17: [96, 47, 52, 56, 59], 2: [70, 82, 54, 92, 62], 9: [68, 37, 12, 76, 17],
+                       8: [97, 3, 42, 43, 88], 16: [65, 36, 74, 80, 50], 6: [5, 20, 84, 25, 94],
+                       12: [64, 66, 34, 75, 63], 19: [69, 41, 81, 85, 89], 7: [6, 7, 14, 18, 24],
+                       13: [99, 45, 77, 79, 26], 0: [4, 72, 55, 30, 95]}
+
 
 
 ############## Load Train Data ################
@@ -258,7 +277,7 @@ class MiniDecisionBlock(nn.Module):
         self.line2 = nn.Linear(4096, 4096)
         self.relu8 = nn.ReLU(inplace=True)
 
-        self.line3 = nn.Linear(4096, 100)
+        self.line3 = nn.Linear(4096, 5)
         self.fc = nn.Softmax()
 
     def forward(self, x):
@@ -481,8 +500,11 @@ def split_data(model, loader, mode='train'):
         scores = model(x_var)
         _, preds = scores.data.cpu().max(1)
         for i in range(len(preds)):
-            superclass_data[preds[i][0]].append(dataset[i])
-            superclass_y[preds[i][0]].append(label_set[i])
+            #Only adds to segmented data if it was correctly predicted
+            if label_set[i] in coarse_to_fine_dict[preds[i][0]]:
+                superclass_data[preds[i][0]].append(dataset[i])
+                #Relabels out of 5 instead of 100
+                superclass_y[preds[i][0]].append(coarse_to_fine_dict[preds[i][0]].index(label_set[i]))
     for key in (superclass_data.keys()):
         if superclass_data[key] != []:
             superclass_data[key] = np.stack(superclass_data[key])
@@ -554,10 +576,10 @@ def train_masses(training_set, val_set):
     total_samples = 0
 
     for superclass in range(len(training_set)):
-        model = MiniDecisionBlock()
+        model = WideResNet(10, 5, widen_factor=5, dropRate=0.5)
         loss_fn = nn.CrossEntropyLoss().type(dtype)
         optimizer = optim.SGD(model.parameters(), lr=.0075, momentum=.95)
-        train(model, loss_fn, optimizer, loader_train=training_set[superclass], num_epochs=1)
+        train(model, loss_fn, optimizer, loader_train=training_set[superclass], num_epochs=100)
         model_list.append(model)
         print("Checking Accuracy on SuperClass ", superclass, " :")
         if val_set[superclass] != []:
@@ -568,7 +590,6 @@ def train_masses(training_set, val_set):
             print("No images were categorized as Superclass ", superclass, " in the validation set.")
     print("Total Accuracy: ", total_correct * 100 / float(total_samples), "%")
     return model_list
-
 
 def run_test(model, model_list, loader_test):
     total_correct = 0
@@ -582,15 +603,26 @@ def run_test(model, model_list, loader_test):
     print("Total Accuracy on Test Data: ", total_correct * 100. / total_samples, "%")
     return 1
 
+def matrix_to_images(matrix):
+    num_pictures = 200
+    idxs = [a for a in range(matrix.shape[0])]
+    idxs = np.random.choice(idxs, num_pictures, replace=False)
+    for i, idx in enumerate(idxs):
+        plt.subplot(50, 4, i)
+        plt.imshow(matrix[idx].astype('uint8'))
+        plt.axis('off')
+    plt.savefig('cifar100_test.png')
+    print("Image saved!")
+
 ### Define Model ###
 start_time = time.time()
-model = WideResNet(28, 20, widen_factor=10)
+model = WideResNet(28, 20, widen_factor=10, dropRate=0.5)
 
 loss_fn = nn.CrossEntropyLoss().type(dtype)
 optimizer = optim.SGD(model.parameters(), lr=.0075, momentum=.95)
 
 ##### Train Decision Network #####
-train(model, loss_fn, optimizer, num_epochs=25)
+train(model, loss_fn, optimizer, num_epochs=100)
 check_accuracy(model, loader_val)
 check_accuracy(model, loader_test)
 
