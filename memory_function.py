@@ -203,14 +203,12 @@ def memory_update(memory, output, ground_truth):
 
 
 ###### TEST ###########
-test_input = ag.Variable((torch.FloatTensor([[5, 3, 2], [4, 9, 7]])))
-test_truth = [10, 30]
-test_model = Memory(2, 1000, 3)
-for i in range(450):
-    out = test_model.forward(test_input)
-    loss = memory_loss(test_model, test_truth)
-    vector_loss = memory_loss_vectorized(test_model, test_truth)
-    print(i, ": ", loss)
-    print(i, " vectorized loss: ", vector_loss)
-
-    memory_update(test_model, out, test_truth)
+# test_input = ag.Variable((torch.FloatTensor([[5, 3, 2], [4, 9, 7]])))
+# test_truth = [10, 30]
+# test_model = Memory(2, 1000, 3)
+# for i in range(450):
+#     out = test_model.forward(test_input)
+#     loss = memory_loss(test_model, test_truth)
+#     print(i, ": ", loss)
+#
+#     memory_update(test_model, out, test_truth)

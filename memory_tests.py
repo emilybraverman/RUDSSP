@@ -34,18 +34,18 @@ class ChunkSampler(sampler.Sampler):
     def __len__(self):
         return self.num_samples
 
-class LeNet(nn.Module):
+class OmniNet(nn.Module):
     """
     For testing purposes. Poor performance.
     """
     def __init__(self):
-        super(LeNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
+        super(OmniNet, self).__init__()
+        self.conv1 = nn.Conv2d(1, 6, 5)
         self.conv2 = nn.Conv2d(6, 20, 5)
         self.flatten = Flatten()
-        self.fc1   = nn.Linear(20*5*5, 120)
+        self.fc1   = nn.Linear(20*4*4, 120)
         self.fc2   = nn.Linear(120, 84)
-        self.fc3   = nn.Linear(84, 100)
+        self.fc3   = nn.Linear(84, 3855)
 
     def forward(self, x):
         out = F.relu(self.conv1(x), inplace=True)
@@ -69,24 +69,24 @@ root = "./datasets"
 omniglot_root = "./datasets/omniglot"
 
 
-######## CIFAR-100 Test #############
-
-NUM_TRAIN = 49000
-NUM_VAL = 1000
-
-cifar100_train = dset.CIFAR100(root, train=True, download=True,
-                           transform=T.ToTensor())
-loader_train = DataLoader(cifar100_train, batch_size=64, sampler=ChunkSampler(NUM_TRAIN, 0))
-
-cifar100_val = dset.CIFAR100(root, train=True, download=True,
-                           transform=T.ToTensor())
-loader_val = DataLoader(cifar100_val, batch_size=64, sampler=ChunkSampler(NUM_VAL, NUM_TRAIN))
-
-cifar100_test = dset.CIFAR100(root, train=False, download=True,
-                          transform=T.ToTensor())
-
-loader_test = DataLoader(cifar100_test, batch_size=64)
-
+# ######## CIFAR-100 Test #############
+#
+# NUM_TRAIN = 49000
+# NUM_VAL = 1000
+#
+# cifar100_train = dset.CIFAR100(root, train=True, download=True,
+#                            transform=T.ToTensor())
+# loader_train = DataLoader(cifar100_train, batch_size=64, sampler=ChunkSampler(NUM_TRAIN, 0))
+#
+# cifar100_val = dset.CIFAR100(root, train=True, download=True,
+#                            transform=T.ToTensor())
+# loader_val = DataLoader(cifar100_val, batch_size=64, sampler=ChunkSampler(NUM_VAL, NUM_TRAIN))
+#
+# cifar100_test = dset.CIFAR100(root, train=False, download=True,
+#                           transform=T.ToTensor())
+#
+# loader_test = DataLoader(cifar100_test, batch_size=64)
+#
 
 ##### OMNIGLOT #########
 
@@ -97,16 +97,27 @@ def unpickle(file):
     return dict
 
 batch_size = 64
+num_train = 70000
+num_val = 7120
 
 DATA_FILE_FORMAT = os.path.join(os.getcwd(), '%s_omni.pkl')
 train_filepath = DATA_FILE_FORMAT % 'train'
 train_set = omniglot.OmniglotDataset(train_filepath)
-trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, sampler=ChunkSampler())
+trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, sampler=(num_train,0))
+
+val_loader = DataLoader(train_set, batch_size=batch_size,  shuffle=False, sampler=ChunkSampler(num_val, num_train))
 
 test_filepath = DATA_FILE_FORMAT % 'test'
 test_set = omniglot.OmniglotDataset(test_filepath)
-testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, sampler=ChunkSampler())
+testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
+print(train_set.images.shape)
+print(train_set.labels.shape)
+
+print(test_set.images.shape)
+print(test_set.labels.shape)
+
+print(max(train_set.labels))
 
 ### Check if GPU is available ####
 torch.cuda.is_available()
@@ -123,7 +134,7 @@ def train(model, loss_fn, optimizer, num_epochs=1):
         print('Starting epoch %d / %d' % (epoch + 1, num_epochs))
         model.train()
         #model.cuda()
-        for t, (x, y) in enumerate(loader_train):
+        for t, (x, y) in enumerate(trainloader):
             #x_var = Variable(x.type(gpu_dtype))
             x_var = Variable(x.type(dtype))
 
@@ -165,7 +176,7 @@ def train_with_memory(model, loss_fn, optimizer, num_epochs=1, memory = False):
         print('Starting epoch %d / %d' % (epoch + 1, num_epochs))
         model.train()
         #model.cuda()
-        for t, (x, y) in enumerate(loader_train):
+        for t, (x, y) in enumerate(trainloader):
             #x_var = Variable(x.type(gpu_dtype))
             x_var = Variable(x.type(dtype))
 
@@ -216,15 +227,15 @@ def check_accuracy_with_memory(model, loader):
 ##### Initialize Model ######
 start_time = time.time()
 
-model = LeNet()
-memory = memory_function.Memory(49000, 100)
+model = OmniNet()
+memory = memory_function.Memory(batch_size, num_train, 3855)
 loss_fn = nn.CrossEntropyLoss().type(dtype)
 optimizer = optim.SGD(model.parameters(), lr=.0075, momentum=.95)
 
 
 ##### Train Network #####
 train_with_memory(model, loss_fn, optimizer, num_epochs=10, memory = memory)
-check_accuracy_with_memory(model, loader_val)
+check_accuracy_with_memory(model, val_loader)
 
 runtime = time.time() - start_time
 print("Runtime: ", runtime)

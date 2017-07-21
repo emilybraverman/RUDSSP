@@ -21,7 +21,7 @@ class OmniglotDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        with open(DATA_FILE_FORMAT % data_file, "rb") as f:
+        with open(data_file, "rb") as f:
             processed_data = pickle.load(f)
         self.images = np.vstack([np.expand_dims(np.expand_dims(image, axis=0), axis=0) for image in processed_data['images']])
         self.images = self.images.astype('float32')
