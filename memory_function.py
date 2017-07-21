@@ -5,10 +5,9 @@ import numpy as np
 
 
 class Memory(ag.Function):
-    def __init__(self, memory_size, key_size, choose_k = 256, inverse_temp = 40, margin = 0.1, calc_cosine = False):
+    def __init__(self, batch_size, memory_size, key_size, choose_k = 256, inverse_temp = 40, margin = 0.1, calc_cosine = False):
         self.memory_size = memory_size
         self.key_size = key_size
-<<<<<<< HEAD
 
         #Initialize normalized key matrix
         keys = torch.randn((memory_size, key_size)).numpy()
@@ -18,18 +17,16 @@ class Memory(ag.Function):
 
         self.value = nn.Parameter(torch.from_numpy(np.array([i for i in range(memory_size)])))
         self.age = nn.Parameter(torch.from_numpy(np.zeros(memory_size)))
-=======
-        self.keys = nn.Parameter(torch.Tensor(memory_size, key_size))
-        nn.init.uniform(self.keys, a=-0.0, b=0.0)
-        self.value = nn.Parameter(torch.Tensor(memory_size).zero())
-        self.age = nn.Parameter(torch.Tensor(memory_size).zero)()
->>>>>>> upstream/master
         self.choose_k = choose_k
         self.inverse_temp = inverse_temp
         self.margin = margin
         self.calc_cosine = calc_cosine
         self.nearest_neighbors = torch.Tensor(memory_size, choose_k)
         self.queries = None
+
+        self.batch_indices = (batch_number * batch_size, (batch_number+1) * batch_size)
+        self.batch_number = 0
+        self.batch_size = batch_size
 
     def forward(self, input):
         """
@@ -84,7 +81,11 @@ class Memory(ag.Function):
     def backward(self, grad_output):
         pass
 
-<<<<<<< HEAD
+    def update_batch_num(self):
+        self.batch_number += 1
+
+        return 0
+
 def memory_loss(memory, ground_truth):
     """
     Calculates memory loss for a given memory and ground truth label.
@@ -92,66 +93,15 @@ def memory_loss(memory, ground_truth):
     Arguments:
         memory: A Memory module.
         ground_truth: The correct desired labels for the queries.
-=======
-#    def memory_loss(self, query, ground_truth):
-        """
-#        Calculates memory loss for a given query and ground truth label.
-
-        Arguments:
-            nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
-            query: A normalized tensor of size batch-size x key-size.
-            ground_truth: vector of size batch-size
-        """#
-        # batch-size x choose-k; elements are indices of key_scores dim 0
-#        nearest_neighbors = self.nearest_neighbors
-#        positive_neighbor = None
-#        negative_neighbor = None
-
-#        batch_indices = range(self.batch_indices[0], self.batch_indices[1])
-        # batch_size x <256 matrix with all indices where query val != ground truth
-#        negative_neighbor_indices = np.where(self.value[batch_indices, nearest_neighbors] != ground_truth)[0]
-        #neg nbr = batch_size x 1 vector
-#        negative_neighbor = negative_neighbor_indices[:, 0]
-
-        #Flag notifying whether a positive neighbor was found
-#        found = False
-
-        #Find positive neighbor
-        #for neighbor in nearest_neighbors:
-        #    if self.value[neighbor] == ground_truth:
-        #        positive_neighbor = neighbor
-        #        found = True
-        #        break
-#        positive_neighbor_indices = np.where(self.value[batch_indices, nearest_neighbors] == ground_truth)[0]
-        # pos nbr = batch_size x 1 vector#
-#        positive_neighbor = positive_neighbor_indices[:, 0]
-
-        #Selects an arbitrary positive neighbor if none of the k-nearest neighbors are positive
-#        if not found:
-#            positive_neighbor = np.where(self.value == ground_truth)[0]
-
-#        loss = query.dot(self.keys[negative_neighbor] - query.dot(self.keys[positive_neighbor]) + self.margin)
-
-#        return loss
-def memory_loss(memory, ground_truth):
-    """
-    Calculates memory loss for a given query and ground truth label.
-    Arguments:
-    		nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
-    		query: A normalized tensor of size batch-size x key-size.
-    		ground_truth: vector of size batch-size
->>>>>>> upstream/master
     """
     nearest_neighbors = memory.nearest_neighbors
     queries = memory.queries
     positive_neighbor = None
     negative_neighbor = None
-    batch_indices = range(memory.batch_indices[0], memory.batch_indices[1])
     loss = 0.0
 
     for query in range(queries.size()[0]):
         #Find negative neighbor
-<<<<<<< HEAD
         for neighbor in nearest_neighbors[query]:
             if memory.value.data[neighbor] != ground_truth[query]:
                 negative_neighbor = neighbor
@@ -175,39 +125,16 @@ def memory_loss(memory, ground_truth):
             memory_vals = memory.value.data.numpy()
             positive_neighbor = np.where(memory_vals == ground_truth[query])[0][0]
         loss += torch.dot(queries[query], memory.keys.data[negative_neighbor]) - torch.dot(queries[query], memory.keys.data[positive_neighbor]) + memory.margin
-=======
-       for neighbor in nearest_neighbors[query]:
-           if memory.value.data[neighbor] != ground_truth[query]:
-               negative_neighbor = neighbor
-               break
-
-        #Flag notifying whether a positive neighbor was found
-       found = False
-
-        #Find positive neighbor
-
-       for neighbor in nearest_neighbors[query]:
-           if memory.value.data[neighbor] == ground_truth[query]:
-               positive_neighbor = neighbor
-               found = True
-               break
-
-        #Selects an arbitrary positive neighbor if none of the k-nearest neighbors are positive
-       if not found:
-           memory_vals = memory.value.data.numpy()
-           positive_neighbor = np.where(memory_vals == ground_truth[query])[0][0]
-
-           loss += torch.dot(queries[query], memory.keys.data[negative_neighbor]) - torch.dot(queries[query], memory.keys.data[positive_neighbor]) + memory.margin
 
     return loss
 
 def memory_loss_vectorized(memory, ground_truth):
     """
-    Calculates memory loss for a given query and ground truth label.
+    Calculates memory loss for a given memory and ground truth label.
+
     Arguments:
-            nearest_neighbors: A list of the indices for the k-nearest neighbors of the queries in K.
-            query: A normalized tensor of size batch-size x key-size.
-            ground_truth: vector of size batch-size
+        memory: A Memory module.
+        ground_truth: The correct desired labels for the queries.
     """
     nearest_neighbors = memory.nearest_neighbors
     queries = memory.queries
@@ -232,13 +159,13 @@ def memory_loss_vectorized(memory, ground_truth):
     positive_neighbor[np.where(bool_pos_nbr==False)] = np.where(memory.value == ground_truth)[0]
 
     loss = queries.dot(memory.keys[negative_neighbor] - queries.dot(memory.keys[positive_neighbor]) + memory.margin)
->>>>>>> upstream/master
 
     return loss
 
 def memory_update(memory, output, ground_truth):
     """
    Performs the memory update.
+
    Arguments:
        memory: A Memory Module.
         output: The resulting values from the forward pass through memory.
@@ -273,24 +200,17 @@ def memory_update(memory, output, ground_truth):
 
     return 0
 
-<<<<<<< HEAD
 
 
 ###### TEST ###########
-# test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
-# test_truth = [10, 30]
-# test_model = Memory(1000, 3)
-# for i in range(450):
-#     out = test_model.forward(test_input)
-#     loss = memory_loss(test_model, test_truth)
-#     print(i, ": ", loss)
-#     memory_update(test_model, out, test_truth)
-=======
-test_input = (torch.FloatTensor([[5, 3, 2], [4, 9, 7]]))
+test_input = ag.Variable((torch.FloatTensor([[5, 3, 2], [4, 9, 7]])))
 test_truth = [10, 30]
 test_model = Memory(1000, 3)
-out = test_model.forward(test_input)
-loss = memory_loss(test_model, test_truth)
-print(loss)
-memory_update(test_model, out, test_truth)
->>>>>>> upstream/master
+for i in range(450):
+    out = test_model.forward(test_input)
+    loss = memory_loss(test_model, test_truth)
+    vector_loss = memory_loss_vectorized(test_model, test_truth)
+    print(i, ": ", loss)
+    print(i, " vectorized loss: ", vector_loss)
+
+    memory_update(test_model, out, test_truth)
