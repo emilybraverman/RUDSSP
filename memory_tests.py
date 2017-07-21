@@ -1,5 +1,6 @@
 
 import time
+import os
 import torch
 import torchvision.datasets as dset
 from torch.utils.data import DataLoader
@@ -12,6 +13,7 @@ import torchvision.transforms as T
 import torch.nn.functional as F
 
 import memory_function
+import omniglot
 
 ####### Layers ##################
 
@@ -94,29 +96,17 @@ def unpickle(file):
         dict = pickle.load(fo, encoding='bytes')
     return dict
 
+batch_size = 64
 
-print("Unpacking Omniglot...")
-train_dict = unpickle(omniglot_root + "/train_omni.pkl")
-test_dict = unpickle(omniglot_root + "/test_omni.pkl")
+DATA_FILE_FORMAT = os.path.join(os.getcwd(), '%s_omni.pkl')
+train_filepath = DATA_FILE_FORMAT % 'train'
+train_set = omniglot.OmniglotDataset(train_filepath)
+trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, sampler=ChunkSampler())
 
-train_images = torch.from_numpy(train_dict[b"images"])
-train_labels = torch.from_numpy(train_dict[b"labels"].astype("float"))
-print(train_images.size())
-print(train_labels.size())
+test_filepath = DATA_FILE_FORMAT % 'test'
+test_set = omniglot.OmniglotDataset(test_filepath)
+testloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, sampler=ChunkSampler())
 
-test_images = torch.from_numpy(test_dict[b"images"])
-test_labels = torch.from_numpy(test_dict[b"labels"].astype("float"))
-print(test_images.size())
-print(test_labels.size())
-
-NUM_OMNI_TRAIN = 70000
-NUM_OMNI_VAL = 7120
-
-omni_train_dset = TensorDataset(train_images, train_labels)
-omni_loader_train = DataLoader(omni_train_dset, batch_size=64, sampler=ChunkSampler(NUM_OMNI_TRAIN, 0))
-
-omni_test_dset = TensorDataset(test_images, test_labels)
-omni_loader_test = DataLoader(omni_test_dset, batch_size=64, sampler=ChunkSampler(NUM_OMNI_VAL, NUM_OMNI_TRAIN))
 
 ### Check if GPU is available ####
 torch.cuda.is_available()

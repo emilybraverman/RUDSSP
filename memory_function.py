@@ -24,8 +24,8 @@ class Memory(ag.Function):
         self.nearest_neighbors = torch.Tensor(memory_size, choose_k)
         self.queries = None
 
-        self.batch_indices = (batch_number * batch_size, (batch_number+1) * batch_size)
         self.batch_number = 0
+        self.batch_indices = (self.batch_number * batch_size, (self.batch_number+1) * batch_size)
         self.batch_size = batch_size
 
     def forward(self, input):
@@ -205,7 +205,7 @@ def memory_update(memory, output, ground_truth):
 ###### TEST ###########
 test_input = ag.Variable((torch.FloatTensor([[5, 3, 2], [4, 9, 7]])))
 test_truth = [10, 30]
-test_model = Memory(1000, 3)
+test_model = Memory(2, 1000, 3)
 for i in range(450):
     out = test_model.forward(test_input)
     loss = memory_loss(test_model, test_truth)
